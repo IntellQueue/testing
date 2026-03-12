@@ -51,9 +51,9 @@ class Idlix : MainAPI() {
         val document = req.document
         val home =
                 (if (nonPaged) {
-                            document.select("div.items.featured article")
+                            document.select("div.gmr-item-modulepost")
                         } else {
-                            document.select("div.items.full article, div#archive-content article")
+                            document.select("div.gmr-item-modulepost")
                         })
                         .mapNotNull { it.toSearchResult() }
         return newHomePageResponse(request.name, home)
@@ -78,10 +78,11 @@ class Idlix : MainAPI() {
     }
 
     private fun Element.toSearchResult(): SearchResponse {
-        val title = this.selectFirst("h3 > a")!!.text().replace(Regex("\\(\\d{4}\\)"), "").trim()
-        val href = getProperLink(this.selectFirst("h3 > a")!!.attr("href"))
-        val posterUrl = this.select("div.poster > img").attr("src")
-        val quality = getQualityFromString(this.select("span.quality").text())
+        val titleElem = this.selectFirst("h2.entry-title > a") ?: this.selectFirst("h2 > a")
+        val title = titleElem?.text()?.replace(Regex("\\(\\d{4}\\)"), "")?.trim() ?: "Unknown"
+        val href = getProperLink(titleElem?.attr("href") ?: "")
+        val posterUrl = this.select("img").attr("src")
+        val quality = getQualityFromString(this.select("div.gmr-quality-item > a").text())
         return newMovieSearchResponse(title, href, TvType.Movie) {
             this.posterUrl = posterUrl
             this.quality = quality
@@ -92,15 +93,12 @@ class Idlix : MainAPI() {
         val req = app.get("$mainUrl/search/$query")
         mainUrl = getBaseUrl(req.url)
         val document = req.document
-        return document.select("div.result-item").map {
-            val title =
-                    it.selectFirst("div.title > a")!!
-                            .text()
-                            .replace(Regex("\\(\\d{4}\\)"), "")
-                            .trim()
-            val href = getProperLink(it.selectFirst("div.title > a")!!.attr("href"))
-            val posterUrl = it.selectFirst("img")!!.attr("src")
-            newMovieSearchResponse(title, href, TvType.TvSeries) { this.posterUrl = posterUrl }
+        return document.select("article.item").map {
+            val titleElem = it.selectFirst("h2.entry-title > a") ?: it.selectFirst("h2 > a")
+            val title = titleElem?.text()?.replace(Regex("\\(\\d{4}\\)"), "")?.trim() ?: "Unknown"
+            val href = getProperLink(titleElem?.attr("href") ?: "")
+            val posterUrl = it.selectFirst("img")?.attr("src") ?: ""
+            newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = posterUrl }
         }
     }
 
@@ -109,17 +107,17 @@ class Idlix : MainAPI() {
         directUrl = getBaseUrl(request.url)
         val document = request.document
         val title =
-                document.selectFirst("div.data > h1")
+                document.selectFirst("h1.entry-title, div.data > h1")
                         ?.text()
                         ?.replace(Regex("\\(\\d{4}\\)"), "")
                         ?.trim()
                         .toString()
-        val poster = document.select("div.poster > img").attr("src")
-        val tags = document.select("div.sgeneros > a").map { it.text() }
+        val poster = document.select("img.wp-post-image, div.poster > img").attr("src")
+        val tags = document.select("a[rel=category tag], div.sgeneros > a").map { it.text() }
 
         val year =
-                Regex(",\\s?(\\d+)")
-                        .find(document.select("span.date").text().trim())
+                Regex("\\b(\\d{4})\\b")
+                        .find(document.select("a[href*=/year/], span.date").text().trim())
                         ?.groupValues
                         ?.get(1)
                         .toString()
@@ -128,9 +126,9 @@ class Idlix : MainAPI() {
                 if (document.select("ul#section > li:nth-child(1)").text().contains("Episodes"))
                         TvType.TvSeries
                 else TvType.Movie
-        val description = document.select("div.wp-content > p").text().trim()
-        val trailer = document.selectFirst("div.embed iframe")?.attr("src")
-        val rating = document.selectFirst("span.dt_rating_vgs")?.text()
+        val description = document.select("div.entry-content p, div.wp-content > p").text().trim()
+        val trailer = document.selectFirst("a.gmr-trailer-popup")?.attr("href") ?: document.selectFirst("div.embed iframe")?.attr("src")
+        val rating = document.selectFirst("div.gmr-rating-item")?.text() ?: document.selectFirst("span.dt_rating_vgs")?.text()
         val actors =
                 document.select("div.persons > div[itemprop=actor]").map {
                     Actor(
