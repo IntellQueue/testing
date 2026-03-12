@@ -24,5 +24,5 @@ cloudstream {
         "AsianDrama",
     )
 
-    iconUrl = "hhttps://tv7.idlix.asia/wp-content/uploads/2020/07/logov4.png"
+    iconUrl = "http://139.59.203.130/wp-content/uploads/2020/07/logov4.png"
 }
